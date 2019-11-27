@@ -1,0 +1,239 @@
+# Package for Twitter Analytics
+install.packages("twitteR")
+
+# Package for essential functions
+install.packages("devtools")
+
+# Package for Twitter API authentication
+install.packages("ROAuth")
+
+# Package for Graph Plotting
+install.packages("ggplot2")
+
+# Package for Color in Graph
+install.packages("RColorBrewer")
+
+# Invoking above packages
+library(twitteR)
+library(Rstem)
+# Has install_url(). Load ASAP
+library(devtools)
+library(ROAuth)
+library(plyr)
+library(ggplot2)
+library(RColorBrewer)
+
+# Devtools package must be installed to invoke install_url() function
+install_github('sentiment140', 'okugami79')
+install_github("juliasilge/tidytext")
+install_url(('http://cran.r-project.org/src/contrib/Archive/Rstem/Rstem_0.4-1.tar.gz'))
+
+#Generated from Twitternama API created from www.dev.twitter.com
+api_key <- "eJI2sFP0A5fs3vN0LROhHktj"
+
+api_secret <- "FeiPG9fNtlAaKvCEhNHRXQPoK7a4U8AKUgHx3JCYbmJSNjwAQ"
+
+access_token <- "359484146-8hB6ui3WMrALZ46FIax9wOur9fP9I1p0pqTOKM6"
+
+access_token_secret <- "PGv1UzGAMyYaM1a4ogpxb80GLw4XZ1DpSYgWHoN3njQQ"
+
+#package required to setup Twitter API connection
+install.packages("base64enc")
+devtools::install_github("jrowen/twitteR", ref = "oauth_httr_1_0")
+twitteR:::setup_twitter_oauth(api_key,api_secret,access_token,access_token_secret)
+
+# Importing tweets from Twitter
+GST_tweets = searchTwitter("GST", n=1500, lang="en")
+# Converting tweets to texts
+GST_text = sapply(GST_tweets, function(x) x$getText())
+
+# DATA CLEANSING  
+# Removing Retweets 
+GST_text = gsub("(RT|via)((?:\\b\\W*@\\w+)+)", "", GST_text)
+# Removing @people
+GST_text = gsub("@\\w+", "", GST_text)
+# Removing Punctuations
+GST_text = gsub("[[:punct:]]", "", GST_text )
+# Removing Digits (0-9)
+GST_text = gsub("[[:digit:]]", "", GST_text)
+# Removing hyperlinks
+GST_text = gsub("http\\w+", "", GST_text)
+# Removing tabs 
+GST_text = gsub("[ \t]{2,}", "", GST_text)
+# Removing unnecessary spaces
+GST_text = gsub("^\\s+|\\s+$", "", GST_text)
+# Error handling function for Case conversion
+try.error = function(x)
+{
+  y = NA
+  try_error = tryCatch(tolower(x), error=function(e) e)
+  
+  if (!inherits(try_error, "error"))
+    y = tolower(x)
+  
+  return(y)
+}
+# lowercase using try.error function
+GST_text = sapply(GST_text, try.error)
+# Removing NA from GST_text
+GST_text = GST_text [!is.na(GST_text)]
+names(GST_text) = NULL
+
+library(sentiment)
+install_url('http://cran.r-project.org/src/contrib/Archive/sentiment/sentiment_0.2.tar.gz')
+library(sentiment)
+
+#PROBLEMATIC AREA: classify_emotion function of sentiment package 
+class_emo = classify_emotion(GST_text, algorithm="bayes", prior=1.0)
+emotion = class_emo[,7]
+emotion[is.na(emotion)] = "Indifferent"
+# classify_polarity function of Sentiment package
+class_pol = classify_polarity(GST_text, algorithm="bayes")
+#getting best fit for polarity 
+polarity = class_pol[,4]
+
+#data frame containing results
+sent_df = data.frame(text= GST_text, emotion=emotion, polarity=polarity, stringsAsFactors=FALSE)
+#sorting of the data frame
+sent_df = within(sent_df, emotion <- factor(emotion, levels=names(sort(table(emotion), decreasing=TRUE))))
+
+#distribution of emotions
+library(ggplot2)
+ggplot(sent_df, aes(x=emotion)) +
+  
+  geom_bar(aes(y=..count.., fill=emotion)) +
+  
+  scale_fill_brewer(palette="Dark2") +
+  
+  labs(x="emotion categories", y="number of tweets") +
+  
+  labs(title = "Sentiment Analysis of Tweets about GST\n(Classification by emotion)")
+
+#distribution of polarity
+library(ggplot2)
+ggplot(sent_df, aes(x=polarity)) +
+  
+  geom_bar(aes(y=..count.., fill=polarity)) +
+  
+  scale_fill_brewer(palette="Dark2") +
+  
+  labs(x="polarity categories", y="number of tweets") +
+  
+  labs(title = "Sentiment Analysis of Tweets about GST\n(Classification by polarity)")
+
+# Line Graph for Emotion
+
+library(ggplot2)
+ggplot(sent_df, aes(x=emotion, group =1)) +
+  
+  geom_line(aes(fill=..count..), stat = "count" , color = "red" , linetype = "solid") +
+  
+  geom_point(aes(fill=..count..), stat = "count" ,color = "blue" , size = 2) + 
+  
+  labs(x="emotion categories", y="number of tweets") +
+  
+  labs(title = "Sentiment Analysis of Tweets about GST\n(Classification by Emotion)")
+
+
+# Polarity scoring Graph
+library(stringr)
+library(twitteR)
+library(plyr)
+
+# Imports Negative Words Lexicon
+neg = scan("C:/Users/Medhajit/Documents/negative-words.txt", what="character", comment.char=";")
+# Imports Positive Words Lexicon
+pos = scan("C:/Users/Medhajit/Documents/positive-words.txt", what="character", comment.char=";")
+# Function for calculating sentiment score
+score.sentiment = function(tweets, pos.words, neg.words)
+  
+{
+  require(plyr)
+  require(stringr)
+  
+  scores = laply(tweets, function(tweet, pos.words, neg.words) 
+  {
+    # Data Cleansing
+    tweet = gsub('https://','',tweet)
+    tweet = gsub('http://','',tweet)
+    tweet=gsub('[^[:graph:]]', ' ',tweet)
+    tweet = gsub('[[:punct:]]', '', tweet)
+    tweet = gsub('[[:cntrl:]]', '', tweet)
+    tweet = gsub('\\d+', '', tweet)
+    tweet=str_replace_all(tweet,"[^[:graph:]]", " ") 
+    tweet = tolower(tweet)
+    
+    word.list = str_split(tweet, '\\s+')
+    words = unlist(word.list)
+    
+    # Matching words from tweets in lexicon
+    pos.matches = match(words, pos.words)
+    neg.matches = match(words, neg.words)
+    pos.matches = !is.na(pos.matches)
+    neg.matches = !is.na(neg.matches)
+    
+    # Assigning score to every tweet
+    # Score = (Sum of positive words) - (Sum of negative words)
+    score = sum(pos.matches) - sum(neg.matches)
+    return(score)
+    
+  }, pos.words, neg.words )
+  
+  scores.df = data.frame(score=scores, text=tweets)
+  
+  return(scores.df)
+  
+}
+analysis = score.sentiment(GST_text, pos, neg)
+
+colors= c("red", "yellow", "green", "violet", "orange","blue", "pink" )
+
+# Histogram for data visualization
+hist(analysis$score, 
+     main = "Sentiment Score vs No. of Tweets Histogram", 
+     xlab="Sentiment Score", ylab = "No. of Tweets",
+     border= "black",
+     col = colors,
+     breaks = 7
+     )
+
+# Density Curve Distribution of sentiment score
+d <- density(analysis$score)
+plot(d, main = "Sentiment Score vs No. of Tweets Density Curve", 
+     xlab = "Sentiment Score", 
+     ylab = "No.of Tweets")
+
+polygon(d,
+        col = "cyan", 
+        border = "blue")
+
+#code for creation of comparison cloud
+
+#comparison cloud by separating texts by emotions
+emos = levels(factor(sent_df$emotion))
+nemo = length(emos)
+emo.docs = rep("", nemo)
+for (i in 1:nemo)
+  
+{
+  
+  tmp = GST_text[emotion == emos[i]]
+  emo.docs[i] = paste(tmp, collapse=" ")
+  
+}
+# Removing Stopwords 
+emo.docs = removeWords(emo.docs, stopwords("english"))
+
+# Creating Corpus required for Word Cloud
+corpus = Corpus(VectorSource(emo.docs))
+# Creating a Term Document Matrix using the corpus
+tdm = TermDocumentMatrix(corpus)
+tdm = as.matrix(tdm)
+colnames(tdm) = emos
+
+# Package for Word Cloud
+install.packages("wordcloud")
+library (wordcloud)
+# code for generating comparison cloud
+comparison.cloud(tdm, colors = brewer.pal(nemo, "Dark2"), scale = c(3,.5), random.order = FALSE, title.size = 1)
+
